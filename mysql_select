@@ -1,0 +1,195 @@
+<?php
+class sqlSelect
+{
+    // ========================
+    // SALDO DE CAIXA
+    // ========================
+    public function saldoCaixa($idempresa, PDO $pdo)
+    {
+        $sql = "SELECT IDCAIXA, nome_caixa, saldo_atual FROM tblmvmcxa0 WHERE IDEMPRESA = :idempresa";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ========================
+    // FLUXO DE CAIXA
+    // ========================
+    public function fluxoCaixa($idempresa, $periodo, PDO $pdo)
+    {
+        // Exemplo de filtro de período
+        $filtroPeriodo = match($periodo) {
+            'hoje' => " AND DATE(datamov) = CURDATE() ",
+            'mes' => " AND MONTH(datamov) = MONTH(CURDATE()) AND YEAR(datamov) = YEAR(CURDATE()) ",
+            'ano' => " AND YEAR(datamov) = YEAR(CURDATE()) ",
+            default => ""
+        };
+
+        $sql = "SELECT datamov, dinheiro, pix, cartaocre, cartaodeb, duplicata, cheque 
+                FROM tblmvmcxa2 
+                WHERE IDEMPRESA = :idempresa $filtroPeriodo
+                ORDER BY datamov ASC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ========================
+    // CONTAS A RECEBER
+    // ========================
+    public function contasReceber($idempresa, $status = null, $cliente = null, $venc_inicio = null, $venc_fim = null, PDO $pdo)
+    {
+        $filtro = "WHERE ID_EMPRESA = :idempresa ";
+        if ($status === 'abertas') $filtro .= " AND SALDO > 0 ";
+        if ($status === 'quitadas') $filtro .= " AND SALDO = 0 ";
+        if ($cliente) $filtro .= " AND idpessoa = :cliente ";
+        if ($venc_inicio) $filtro .= " AND VCTO >= :venc_inicio ";
+        if ($venc_fim) $filtro .= " AND VCTO <= :venc_fim ";
+
+        $sql = "SELECT * FROM tblmvmpag0 $filtro ORDER BY VCTO ASC LIMIT 10";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        if ($cliente) $stmt->bindValue(':cliente', (int)$cliente, PDO::PARAM_INT);
+        if ($venc_inicio) $stmt->bindValue(':venc_inicio', $venc_inicio);
+        if ($venc_fim) $stmt->bindValue(':venc_fim', $venc_fim);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ========================
+    // CONTAS A PAGAR
+    // ========================
+    public function contasPagar($idempresa, $status = null, $fornecedor = null, $venc_inicio = null, $venc_fim = null, PDO $pdo)
+    {
+        $filtro = "WHERE IDEMPRESA = :idempresa ";
+        if ($status === 'abertas') $filtro .= " AND SALDO > 0 ";
+        if ($status === 'quitadas') $filtro .= " AND SALDO = 0 ";
+        if ($fornecedor) $filtro .= " AND idpessoa = :fornecedor ";
+        if ($venc_inicio) $filtro .= " AND VCTO >= :venc_inicio ";
+        if ($venc_fim) $filtro .= " AND VCTO <= :venc_fim ";
+
+        $sql = "SELECT * FROM tblmvmpag0 $filtro ORDER BY VCTO ASC LIMIT 10";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        if ($fornecedor) $stmt->bindValue(':fornecedor', (int)$fornecedor, PDO::PARAM_INT);
+        if ($venc_inicio) $stmt->bindValue(':venc_inicio', $venc_inicio);
+        if ($venc_fim) $stmt->bindValue(':venc_fim', $venc_fim);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ========================
+    // ADIANTAMENTOS
+    // ========================
+    public function adiantamentosReceber($idempresa, $status = 'pendentes', PDO $pdo)
+    {
+        $filtro = "WHERE IDEMPRESA = :idempresa ";
+        if ($status === 'pendentes') $filtro .= " AND SALDO > 0 ";
+        if ($status === 'quitados') $filtro .= " AND SALDO = 0 ";
+
+        $sql = "SELECT * FROM tblmvmadtpag0 $filtro ORDER BY VCTO ASC LIMIT 10";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function adiantamentosPagar($idempresa, $status = 'pendentes', PDO $pdo)
+    {
+        $filtro = "WHERE IDEMPRESA = :idempresa ";
+        if ($status === 'pendentes') $filtro .= " AND SALDO > 0 ";
+        if ($status === 'quitados') $filtro .= " AND SALDO = 0 ";
+
+        $sql = "SELECT * FROM tblmvmadtpag0 $filtro ORDER BY VCTO ASC LIMIT 10";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ========================
+    // PROVISIONAMENTOS
+    // ========================
+    public function provisionamentos($idempresa, PDO $pdo)
+    {
+        $sql = "SELECT idprovisao, provisao, idfornecedor, duplicata, dia_vencimento, meses_provisionamento, valor, idhistorico, idconta, dtcad, horacad, usucad, dtalt, horaalt, usualt, status, proximo_sync, tipo, tpmovimento
+                FROM tblcdspvs0
+                WHERE idempresa = :idempresa
+                ORDER BY dia_vencimento ASC
+                LIMIT 10";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function provisionamentosCategoria($idempresa, $categoria = null, $periodo = 'mes', PDO $pdo)
+    {
+        $filtroCategoria = '';
+        if (!empty($categoria)) $filtroCategoria = " AND idhistorico = :categoria ";
+
+        switch ($periodo) {
+            case 'hoje':
+                $filtroPeriodo = " AND DATE(dtcad) = CURDATE() "; break;
+            case 'ano':
+                $filtroPeriodo = " AND YEAR(dtcad) = YEAR(CURDATE()) "; break;
+            default:
+                $filtroPeriodo = " AND MONTH(dtcad) = MONTH(CURDATE()) AND YEAR(dtcad) = YEAR(CURDATE()) "; break;
+        }
+
+        $sql = "SELECT idprovisao, provisao, idfornecedor, duplicata, dia_vencimento, meses_provisionamento, valor, idhistorico, idconta, dtcad, horacad, usucad, dtalt, horaalt, usualt, status, proximo_sync, tipo, tpmovimento
+                FROM tblcdspvs0
+                WHERE idempresa = :idempresa
+                $filtroCategoria
+                $filtroPeriodo
+                ORDER BY dia_vencimento ASC
+                LIMIT 10";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        if (!empty($categoria)) $stmt->bindValue(':categoria', (int)$categoria, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ========================
+    // DASHBOARD FINANCEIRO / INDICADORES
+    // ========================
+    public function indicadoresFinanceiros($idempresa, PDO $pdo)
+    {
+        $sql = "SELECT * FROM tbl_fin_indicadores WHERE idempresa = :idempresa";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function graficoContasVencer($idempresa, $dias = 30, PDO $pdo)
+    {
+        $sql = "SELECT * FROM tblmvmpag0 WHERE IDEMPRESA = :idempresa AND VCTO <= DATE_ADD(CURDATE(), INTERVAL :dias DAY)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        $stmt->bindValue(':dias', (int)$dias, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function resumoFinanceiro($idempresa, PDO $pdo)
+    {
+        $sql = "SELECT * FROM tbl_fin_resumo WHERE idempresa = :idempresa";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function evolucaoFinanceira($idempresa, $periodo = '6meses', PDO $pdo)
+    {
+        $sql = "SELECT * FROM tbl_fin_evolucao WHERE idempresa = :idempresa ORDER BY dtmovimento DESC LIMIT 10";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':idempresa', (int)$idempresa, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+}
